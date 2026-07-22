@@ -1,0 +1,126 @@
+#Step 1: Install Required Packages
+  sudo apt update
+  sudo apt install -y apache2 haproxy
+#Step 2: Configure Apache Ports
+  sudo nano /etc/apache2/ports.conf
+  #Replace the content or update it so it looks like this:
+    Listen 8081
+    Listen 8082
+#Step 3: Create Apache Web Host Directories & Files
+  sudo mkdir -p /var/www/host1 /var/www/host2
+  #Create index.html for Apache Host 1:
+    sudo nano /var/www/host1/index.html
+    #Paste this content:
+      <!DOCTYPE html>
+      <html>
+        <head><title>Host 1</title></head>
+        <body style="background-color: #e6f3ff; font-family: sans-serif; text-align: center; padding-top: 50px;">
+          <h1 style="color: #0066cc;">Served by Apache Host 1</h1>
+          <p>Running on Port 8081</p>
+        </body>
+      </html>
+  #Create index.html for Apache Host 2:
+    sudo nano /var/www/host2/index.html
+    #Paste this content:
+      <!DOCTYPE html>
+      <html>
+        <head><title>Host 2</title></head>
+        <body style="background-color: #e6ffe6; font-family: sans-serif; text-align: center; padding-top: 50px;">
+          <h1 style="color: #009933;">Served by Apache Host 2</h1>
+          <p>Running on Port 8082</p>
+        </body>
+      </html>
+#Step 4: Configure Apache Virtual Hosts
+  sudo nano /etc/apache2/sites-available/multi-host.conf
+  #Paste the following configuration:
+  <VirtualHost *:8081>
+    DocumentRoot /var/www/host1
+    DirectoryIndex index.html
+    <Directory /var/www/host1>
+        AllowOverride All
+        Require all granted
+    </Directory>
+  </VirtualHost>
+
+  <VirtualHost *:8082>
+    DocumentRoot /var/www/host2
+    DirectoryIndex index.html
+    <Directory /var/www/host2>
+        AllowOverride All
+        Require all granted
+    </Directory>
+  </VirtualHost>
+  #Disable the default site, enable your new configuration, and restart Apache:
+    sudo a2dissite 000-default.conf
+    sudo a2ensite multi-host.conf
+    sudo systemctl restart apache2
+#Step 5: Configure HAProxy (Load Balancer & SSL Setup)
+  sudo mv /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.bak
+  sudo nano /etc/haproxy/haproxy.cfg
+  #Paste this configuration:
+    global
+      log /dev/log local0
+      log /dev/log local1 notice
+      chroot /var/lib/haproxy
+      user haproxy
+      group haproxy
+      daemon
+
+    defaults
+        log     global
+        mode    http
+        option  httplog
+        option  dontlognull
+        timeout connect 5000ms
+        timeout client  50000ms
+        timeout server  50000ms
+    
+    # HTTP Frontend (Port 80)
+    frontend http_front
+        bind *:80
+        
+        # Path reserved for Certbot SSL challenge
+        acl letsencrypt-acl path_beg /.well-known/acme-challenge/
+        use_backend letsencrypt-backend if letsencrypt-acl
+        
+        # Default traffic routes to Apache backend
+        default_backend apache_backend
+    
+    # Apache Backend (Round Robin Load Balancer)
+    backend apache_backend
+        balance roundrobin
+        option httpchk GET /index.html
+        server host1 127.0.0.1:8081 check
+        server host2 127.0.0.1:8082 check
+    
+    # Backend reserved for SSL Renewal
+    backend letsencrypt-backend
+        server letsencrypt 127.0.0.1:8888
+  #Restart HAProxy:
+    sudo systemctl restart haproxy
+#Step 6: Enable HTTPS (SSL Certificate for hello.aicodecenter.com)
+  sudo apt install -y certbot
+  #Request an SSL certificate using port 8888 (matching HAProxy's ACME backend):
+    sudo certbot certonly --standalone --preferred-challenges http --http-01-port 8888 -d hello.aicodecenter.com
+  #Bundle the key and certificate into a combined .pem file for HAProxy:
+    sudo mkdir -p /etc/haproxy/certs
+    sudo bash -c 'cat /etc/letsencrypt/live/hello.aicodecenter.com/fullchain.pem /etc/letsencrypt/live/hello.aicodecenter.com/privkey.pem > /etc/haproxy/certs/hello.aicodecenter.com.pem'
+    sudo chmod 600 /etc/haproxy/certs/hello.aicodecenter.com.pem
+  #Update /etc/haproxy/haproxy.cfg to enable Port 443 and auto-redirect HTTP to HTTPS:
+    sudo nano /etc/haproxy/haproxy.cfg
+  #Update your frontend http_front and add frontend https_front:
+    frontend http_front
+        bind *:80
+        acl letsencrypt-acl path_beg /.well-known/acme-challenge/
+        use_backend letsencrypt-backend if letsencrypt-acl
+        
+        # Redirect all regular HTTP traffic to HTTPS
+        redirect scheme https code 301 if !letsencrypt-acl
+    
+    frontend https_front
+        bind *:443 ssl crt /etc/haproxy/certs/hello.aicodecenter.com.pem
+        default_backend apache_backend
+  #Restart HAProxy to apply HTTPS:
+    sudo systemctl restart haproxy
+  
+      
