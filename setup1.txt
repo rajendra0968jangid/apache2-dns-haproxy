@@ -78,8 +78,8 @@
   sudo certbot --apache -d hello.aicodecenter.com
 
 #Step 11 :- website lounch
-  http://hello.aicodecenter.com/site1
-  http://hello.aicodecenter.com/site2
+  https://hello.aicodecenter.com/site1
+  https://hello.aicodecenter.com/site2
 
 
 
