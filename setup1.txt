@@ -45,7 +45,11 @@
   sudo a2ensite hello.conf
   sudo systemctl reload apache2
 
-#Step 10 :- website lounch
+#Step 10:- 
+  sudo apt install certbot python3-certbot-apache -y
+  sudo certbot --apache -d hello.aicodecenter.com
+
+#Step 11 :- website lounch
   http://hello.aicodecenter.com/site1
   http://hello.aicodecenter.com/site2
 
