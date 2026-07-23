@@ -1,42 +1,70 @@
 #Step 1
   hello.aicodecenter.com
+
 #Step 2
   Ubuntu 24.04
+
 #Step 3
   sudo apt update
   sudo apt install apache2 -y
   systemctl status apache2
+
 #Step 4 :- Enable Required Modules
   sudo a2enmod proxy
   sudo a2enmod proxy_http
   sudo a2enmod ssl
   sudo a2enmod rewrite
-  
   sudo systemctl restart apache2
+
 #Step 5 :- Create Website 1
   sudo mkdir -p /var/www/host1 /var/www/host2
-  
   #Create index.html for Apache Host 1:
     sudo nano /var/www/host1/index.html
     <h1>Site 1 - Port 8081</h1>
     sudo nano /var/www/host2/index.html
     <h1>Site 2 - Port 8082</h1>
+
 #Step 6 :- Verify DNS
   dig hello.aicodecenter.com
+  #setup 
+  sudo nano /etc/apache2/ports.conf
+  Listen 8081
+  Listen 8082
+
+  #host 1
+  sudo nano /etc/apache2/sites-available/host1.conf
+    <VirtualHost *:8081>
+        DocumentRoot /var/www/host1
+        <Directory /var/www/host1>
+            AllowOverride All
+            Require all granted
+        </Directory>
+    </VirtualHost>
+
+  #host 2
+  sudo nano /etc/apache2/sites-available/host2.conf
+    <VirtualHost *:8082>
+        DocumentRoot /var/www/host2
+        <Directory /var/www/host2>
+            AllowOverride All
+            Require all granted
+        </Directory>
+    </VirtualHost>
+
+  #enable
+  sudo a2ensite host1.conf
+  sudo a2ensite host2.conf
+  sudo systemctl restart apache2
+
 #Step 9 :- Apache Reverse Proxy
   sudo nano /etc/apache2/sites-available/hello.conf
-
   <VirtualHost *:80>
       ServerName hello.aicodecenter.com
-      
       ProxyPreserveHost On
-      
       ProxyPass /site1 http://127.0.0.1:8081/
       ProxyPassReverse /site1 http://127.0.0.1:8081/
-      
       ProxyPass /site2 http://127.0.0.1:8082/
       ProxyPassReverse /site2 http://127.0.0.1:8082/
-      
       ErrorLog ${APACHE_LOG_DIR}/hello-error.log
       CustomLog ${APACHE_LOG_DIR}/hello-access.log combined    
   </VirtualHost>
